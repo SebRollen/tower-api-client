@@ -3,6 +3,7 @@ use crate::pagination::{PaginatedRequest, PaginationStream};
 use crate::request::{Request, RequestData};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use futures::{prelude::*, stream::FuturesOrdered};
+use hyper::header::{HeaderMap, HeaderName, HeaderValue};
 use hyper::{
     body::{to_bytes, Body},
     client::HttpConnector,
@@ -11,7 +12,7 @@ use hyper::{
 };
 use hyper_tls::HttpsConnector;
 use log::debug;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use secrecy::Secret;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::pin::Pin;
@@ -20,9 +21,9 @@ use tower::Service;
 
 #[derive(Clone)]
 enum Authorization {
-    Bearer(String),
-    Basic(String, Option<String>),
-    Query(HashMap<String, String>),
+    Bearer(Secret<String>),
+    Basic(String, Option<Secret<String>>),
+    Query(HashMap<String, Secret<String>>),
     Header(HeaderMap<HeaderValue>),
 }
 
@@ -61,7 +62,7 @@ impl Client {
         Self::from_hyper(client, base_url)
     }
 
-    /// Create a new `Client` from an existing Reqwest Client.
+    /// Create a new `Client` from an existing Hyper Client.
     pub fn from_hyper<S: ToString>(
         inner: HyperClient<HttpsConnector<HttpConnector>>,
         base_url: S,
@@ -75,7 +76,7 @@ impl Client {
 
     /// Enable bearer authentication for the client
     pub fn bearer_auth<S: ToString>(mut self, token: S) -> Self {
-        self.auth = Some(Authorization::Bearer(token.to_string()));
+        self.auth = Some(Authorization::Bearer(Secret::new(token.to_string())));
         self
     }
 
@@ -83,7 +84,7 @@ impl Client {
     pub fn basic_auth<T: Into<Option<S>>, S: ToString>(mut self, user: S, pass: T) -> Self {
         self.auth = Some(Authorization::Basic(
             user.to_string(),
-            pass.into().map(|x| x.to_string()),
+            pass.into().map(|x| Secret::new(x.to_string())),
         ));
         self
     }
@@ -92,7 +93,7 @@ impl Client {
     pub fn query_auth<S: ToString>(mut self, pairs: Vec<(S, S)>) -> Self {
         let pairs = pairs
             .into_iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .map(|(k, v)| (k.to_string(), Secret::new(v.to_string())))
             .collect();
         self.auth = Some(Authorization::Query(pairs));
         self
@@ -144,30 +145,48 @@ impl Client {
         let mut req = Builder::new().uri(&url).method(R::METHOD);
         req.headers_mut().replace(&mut request.headers());
 
-        req = match &self.auth {
-            None => req,
-            Some(Authorization::Bearer(token)) => {
-                req.header("authorization", format!("Bearer {}", token))
-            }
-            Some(Authorization::Basic(user, pass)) => {
-                let creds = format!("{}:{}", user, pass.as_deref().unwrap_or(""));
-                let encoded = STANDARD.encode(creds);
-                req.header("authorization", format!("Basic {}", encoded))
-            }
-            Some(Authorization::Query(pairs)) => {
-                let query = serde_qs::to_string(pairs)?;
-                let url = if url.contains('?') {
-                    format!("{}&{}", url, query)
-                } else {
-                    format!("{}?{}", url, query)
-                };
-                req.uri(url)
-            }
-            Some(Authorization::Header(pairs)) => {
-                for (k, v) in pairs {
-                    req = req.header(k, v);
+        req = {
+            use secrecy::ExposeSecret;
+            match &self.auth {
+                None => req,
+                Some(Authorization::Bearer(token)) => {
+                    let mut header_value =
+                        HeaderValue::from_str(&format!("Bearer {}", token.expose_secret()))
+                            .expect("Failed to create HeaderValue");
+                    header_value.set_sensitive(true);
+                    req.header("authorization", header_value)
                 }
-                req
+                Some(Authorization::Basic(user, pass)) => {
+                    let creds = format!(
+                        "{}:{}",
+                        user,
+                        pass.as_ref()
+                            .map(|x| x.expose_secret())
+                            .unwrap_or(&String::new())
+                    );
+                    let encoded = STANDARD.encode(creds);
+                    let mut header_value = HeaderValue::from_str(&format!("Basic {}", encoded))
+                        .expect("Failed to create HeaderValue");
+                    header_value.set_sensitive(true);
+                    req.header("authorization", header_value)
+                }
+                Some(Authorization::Query(pairs)) => {
+                    let pairs: HashMap<_, _> =
+                        pairs.iter().map(|(k, v)| (k, v.expose_secret())).collect();
+                    let query = serde_qs::to_string(&pairs)?;
+                    let url = if url.contains('?') {
+                        format!("{}&{}", url, query)
+                    } else {
+                        format!("{}?{}", url, query)
+                    };
+                    req.uri(url)
+                }
+                Some(Authorization::Header(pairs)) => {
+                    for (k, v) in pairs {
+                        req = req.header(k, v);
+                    }
+                    req
+                }
             }
         };
 
