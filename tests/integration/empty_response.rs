@@ -16,5 +16,5 @@ async fn empty_response() {
         .mount(&server)
         .await;
 
-    client.send(&EmptyHello).await.unwrap();
+    client.send(EmptyHello).await.unwrap();
 }

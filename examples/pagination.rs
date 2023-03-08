@@ -1,42 +1,25 @@
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt as _};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::collections::HashMap;
 use stream_flatten_iters::TryStreamExt;
-use tower_jsonapi_client::pagination::{
-    query::{QueryModifier, QueryPaginator},
-    PaginatedRequest,
-};
-use tower_jsonapi_client::{Client, Request, RequestData};
+use tower::ServiceBuilder;
+use tower_jsonapi_client::pagination::PaginatedRequest;
+use tower_jsonapi_client::{Client, Request, RequestData, ServiceExt as _};
 
-#[derive(Clone)]
-struct Data {
-    page: usize,
-}
-
-impl From<Data> for QueryModifier {
-    fn from(s: Data) -> QueryModifier {
-        let mut data = HashMap::new();
-        data.insert("page".into(), s.page.to_string());
-        QueryModifier { data }
-    }
-}
-
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct GetPassengers {
     size: usize,
     page: Option<usize>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 struct Passenger {
     name: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct PassengersWrapper {
-    total_passengers: usize,
     total_pages: usize,
     data: Vec<Passenger>,
 }
@@ -55,48 +38,45 @@ impl Request for GetPassengers {
 }
 
 impl PaginatedRequest for GetPassengers {
-    type Data = Data;
-    type Paginator = QueryPaginator<Self::Response, Data>;
-
-    fn initial_page(&self) -> Option<Data> {
-        self.page.map(|page| Data { page })
-    }
-
-    fn paginator(&self) -> Self::Paginator {
-        QueryPaginator::new(|prev: Option<&Data>, res: &PassengersWrapper| {
-            let max_page = res.total_pages;
-            match prev {
-                None => Some(Data { page: 1 }),
-                Some(x) => {
-                    if x.page == max_page {
-                        None
-                    } else {
-                        Some(Data { page: x.page + 1 })
-                    }
+    type PaginationData = usize;
+    fn next_page(&self, prev_page: Option<&usize>, response: &PassengersWrapper) -> Option<usize> {
+        match prev_page {
+            None => Some(1),
+            Some(prev_page) => {
+                if prev_page == &response.total_pages {
+                    None
+                } else {
+                    Some(prev_page + 1)
                 }
             }
-        })
+        }
+    }
+
+    fn update_request(&mut self, page: &usize) {
+        self.page = Some(*page as usize)
     }
 }
 
 #[tokio::main]
 pub async fn main() {
-    env_logger::init();
-    let client = Client::new("https://api.instantwebtools.net");
+    let client = ServiceBuilder::new()
+        .rate_limit(1, std::time::Duration::from_secs(1))
+        .service(Client::new("https://api.instantwebtools.net"));
+
     let req = GetPassengers {
         page: None,
         size: 1,
     };
 
-    // Can send request individually
-    println!("{:?}", client.send(&req).await);
-
-    // Can send paginated request, returning stream of results
     client
-        .send_paginated(&req)
+        .paginate(req)
+        .take(5)
         .map(|maybe_wrapper| maybe_wrapper.map(|wrapper| wrapper.data))
         .try_flatten_iters()
-        .take(5)
-        .for_each(|res| async move { println!("{:?}", res) })
-        .await;
+        .try_for_each(|res| async move {
+            println!("{}", res.name.unwrap_or_else(|| String::from("No name")));
+            Ok(())
+        })
+        .await
+        .unwrap();
 }

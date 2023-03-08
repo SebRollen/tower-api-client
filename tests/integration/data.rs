@@ -30,7 +30,7 @@ async fn query() {
         .await;
 
     let response = client
-        .send(&QueryHello {
+        .send(QueryHello {
             name: "world".into(),
         })
         .await
@@ -63,7 +63,7 @@ async fn json() {
         .await;
 
     let response = client
-        .send(&JsonHello {
+        .send(JsonHello {
             name: "world".into(),
         })
         .await
@@ -97,7 +97,7 @@ async fn form() {
         .await;
 
     let response = client
-        .send(&FormHello {
+        .send(FormHello {
             name: "world".into(),
         })
         .await

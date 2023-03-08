@@ -1,4 +1,4 @@
-use hyper::{header::HeaderMap, http::request::Builder, Method};
+use hyper::{header::HeaderMap, Method};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::borrow::Cow;
 
@@ -56,21 +56,5 @@ impl<'de> Deserialize<'de> for EmptyResponse {
         D: Deserializer<'de>,
     {
         Ok(EmptyResponse {})
-    }
-}
-
-pub(crate) trait BuilderExt: Sized {
-    fn request_data<T: Serialize>(self, body: RequestData<T>) -> Self;
-}
-
-impl BuilderExt for Builder {
-    fn request_data<T: Serialize>(self, body: RequestData<T>) -> Self {
-        match body {
-            RequestData::Empty => self,
-            _ => todo!()
-            //RequestData::Form(value) => self.form(&value),
-            //RequestData::Json(value) => self.json(&value),
-            //RequestData::Query(value) => self.query(&value),
-        }
     }
 }

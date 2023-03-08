@@ -1,29 +1,14 @@
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::collections::HashMap;
-use tower_jsonapi_client::pagination::path::*;
 use tower_jsonapi_client::pagination::*;
-use tower_jsonapi_client::{Client, Request};
+use tower_jsonapi_client::{Client, Request, ServiceExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request as MockRequest, ResponseTemplate};
 
 #[derive(Clone, Serialize)]
 struct PaginationRequest {
     page: Option<usize>,
-}
-
-impl From<PaginationRequest> for PathModifier {
-    fn from(s: PaginationRequest) -> PathModifier {
-        let mut data = HashMap::new();
-        if let Some(x) = s.page {
-            // /nested/page/{number}
-            //   ^      ^      ^
-            //   0      1      2
-            data.insert(2, x.to_string());
-        }
-        PathModifier { data }
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -45,12 +30,17 @@ impl Request for PaginationRequest {
 }
 
 impl PaginatedRequest for PaginationRequest {
-    type Data = Self;
-    type Paginator = PathPaginator<PaginationResponse, Self>;
-    fn paginator(&self) -> Self::Paginator {
-        PathPaginator::new(|_, r: &PaginationResponse| {
-            r.next_page.map(|page| Self { page: Some(page) })
-        })
+    type PaginationData = usize;
+    fn next_page(
+        &self,
+        _prev_page: Option<&usize>,
+        response: &PaginationResponse,
+    ) -> Option<usize> {
+        response.next_page
+    }
+
+    fn update_request(&mut self, page: &usize) {
+        self.page = Some(*page);
     }
 }
 
@@ -97,7 +87,7 @@ async fn path_pagination() {
         .mount(&server)
         .await;
 
-    let mut response = client.send_paginated(&PaginationRequest { page: None });
+    let mut response = client.paginate(PaginationRequest { page: None });
     assert_eq!(
         response.next().await.unwrap().unwrap().data,
         "First!".to_string()

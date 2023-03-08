@@ -39,7 +39,7 @@ async fn post() {
         .await;
 
     client
-        .send(&CreateUser {
+        .send(CreateUser {
             name: "User".into(),
         })
         .await

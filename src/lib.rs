@@ -9,7 +9,7 @@ mod request;
 
 pub use client::{Client, ServiceExt};
 pub use error::Error;
+pub use hyper::header;
+pub use hyper::Method;
+pub use hyper::StatusCode;
 pub use request::*;
-pub use reqwest::header;
-pub use reqwest::Method;
-pub use reqwest::StatusCode;

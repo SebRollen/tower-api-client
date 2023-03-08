@@ -17,7 +17,7 @@ async fn basic_auth() {
         .mount(&server)
         .await;
 
-    client.send(&EmptyHello).await.unwrap();
+    client.send(EmptyHello).await.unwrap();
 }
 
 #[tokio::test]
@@ -29,10 +29,10 @@ async fn basic_auth_no_password() {
 
     Mock::given(method("GET"))
         .and(path("/hello"))
-        .and(header("Authorization", "Basic dXNlcjo=")) // user:pass in base64
+        .and(header("Authorization", "Basic dXNlcjo=")) // user: in base64
         .respond_with(ResponseTemplate::new(200))
         .mount(&server)
         .await;
 
-    client.send(&EmptyHello).await.unwrap();
+    client.send(EmptyHello).await.unwrap();
 }

@@ -16,7 +16,7 @@ async fn client_error() {
         .await;
 
     assert!(matches!(
-        client.send(&EmptyHello).await.unwrap_err(),
+        client.send(EmptyHello).await.unwrap_err(),
         Error::ClientError(status, msg) if (status == StatusCode::NOT_FOUND && msg == String::new())
     ));
 }
@@ -34,7 +34,7 @@ async fn server_error() {
         .await;
 
     assert!(matches!(
-        client.send(&EmptyHello).await.unwrap_err(),
+        client.send(EmptyHello).await.unwrap_err(),
         Error::ServerError(status, msg) if (status == StatusCode::INTERNAL_SERVER_ERROR && msg == String::new())
     ));
 }

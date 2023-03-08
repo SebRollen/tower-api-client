@@ -19,5 +19,5 @@ async fn query_auth() {
         .mount(&server)
         .await;
 
-    client.send(&EmptyHello).await.unwrap();
+    client.send(EmptyHello).await.unwrap();
 }

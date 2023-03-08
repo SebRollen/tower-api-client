@@ -15,14 +15,17 @@ pub enum Error {
     #[error("Serde error: {0}")]
     SerdeQs(#[from] serde_qs::Error),
 
+    #[error("Serde error: {0}")]
+    SerdeUrlEncoded(#[from] serde_urlencoded::ser::Error),
+
     #[error("Pagination error: {msg}")]
     Pagination { msg: String },
 
     #[error("Invalid request. Received status {0}. Message: {1}")]
-    ClientError(reqwest::StatusCode, String),
+    ClientError(hyper::StatusCode, String),
 
     #[error("Server error. Received status {0}. Message: {1}")]
-    ServerError(reqwest::StatusCode, String),
+    ServerError(hyper::StatusCode, String),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),

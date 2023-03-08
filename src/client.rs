@@ -1,6 +1,7 @@
 use crate::error::{Error, Result};
 use crate::pagination::{PaginatedRequest, PaginationStream};
 use crate::request::{Request, RequestData};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use futures::{prelude::*, stream::FuturesOrdered};
 use hyper::{
     body::{to_bytes, Body},
@@ -11,6 +12,7 @@ use hyper::{
 use hyper_tls::HttpsConnector;
 use log::debug;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -20,7 +22,7 @@ use tower::Service;
 enum Authorization {
     Bearer(String),
     Basic(String, Option<String>),
-    Query(Vec<(String, String)>),
+    Query(HashMap<String, String>),
     Header(HeaderMap<HeaderValue>),
 }
 
@@ -134,62 +136,95 @@ impl Client {
             })
     }
 
+    fn format_request<R: Request>(&self, request: &R) -> Result<hyper::Request<Body>> {
+        let endpoint = request.endpoint();
+        let endpoint = endpoint.trim_matches('/');
+        let url = format!("{}/{}", self.base_url, endpoint);
+
+        let mut req = Builder::new().uri(&url).method(R::METHOD);
+        req.headers_mut().replace(&mut request.headers());
+
+        req = match &self.auth {
+            None => req,
+            Some(Authorization::Bearer(token)) => {
+                req.header("authorization", format!("Bearer {}", token))
+            }
+            Some(Authorization::Basic(user, pass)) => {
+                let creds = format!("{}:{}", user, pass.as_deref().unwrap_or(""));
+                let encoded = STANDARD.encode(creds);
+                req.header("authorization", format!("Basic {}", encoded))
+            }
+            Some(Authorization::Query(pairs)) => {
+                let query = serde_qs::to_string(pairs)?;
+                let url = if url.contains('?') {
+                    format!("{}&{}", url, query)
+                } else {
+                    format!("{}?{}", url, query)
+                };
+                req.uri(url)
+            }
+            Some(Authorization::Header(pairs)) => {
+                for (k, v) in pairs {
+                    req = req.header(k, v);
+                }
+                req
+            }
+        };
+
+        let body = match request.data() {
+            RequestData::Empty => Body::empty(),
+            RequestData::Form(data) => {
+                req = req
+                    .header("content-type", "application/x-www-form-urlencoded")
+                    .uri(url);
+                let body = serde_urlencoded::to_string(data)?;
+                Body::from(body)
+            }
+            RequestData::Json(data) => {
+                req = req.header("content-type", "application/json").uri(url);
+                let bytes = serde_json::to_vec(&data)?;
+                Body::from(bytes)
+            }
+            RequestData::Query(data) => {
+                let query = serde_qs::to_string(data)?;
+                let url = if url.contains('?') {
+                    format!("{}&{}", url, query)
+                } else {
+                    format!("{}?{}", url, query)
+                };
+                req = req.uri(url);
+                Body::empty()
+            }
+        };
+
+        req.body(body).map_err(From::from)
+    }
+
     /// Send a single `Request`
     pub async fn send<R: Request>(&self, request: R) -> Result<R::Response> {
-        let req = format_request(&self.base_url, &request)?;
+        let req = self.format_request(&request)?;
         self.send_raw(req).await
     }
 }
 
-pub trait ServiceExt<R>: Service<R> {
+pub trait ServiceExt<R: PaginatedRequest<PaginationData = T>, T>: Service<R> {
     fn paginate(
-        &self,
+        self,
         request: R,
-    ) -> PaginationStream<Self, R, FuturesOrdered<<Self as Service<R>>::Future>>
+    ) -> PaginationStream<Self, T, R, FuturesOrdered<<Self as Service<R>>::Future>>
     where
+        T: Clone,
+        R: Request<Response = <Self as Service<R>>::Response>,
         R: PaginatedRequest,
-        Self: Sized + Clone,
+        Self: Sized,
     {
-        PaginationStream::new(self.clone(), request)
+        PaginationStream::new(self, request)
     }
 }
 
-impl<T: ?Sized, Request> ServiceExt<Request> for T where T: Service<Request> {}
-
-pub(crate) fn format_request<R: Request>(
-    base_url: &str,
-    request: &R,
-) -> Result<hyper::Request<Body>> {
-    let endpoint = request.endpoint();
-    let endpoint = endpoint.trim_matches('/');
-    let url = format!("{}/{}", base_url, endpoint);
-
-    let mut req = Builder::new().method(R::METHOD);
-    req.headers_mut().replace(&mut request.headers());
-
-    let body = match request.data() {
-        RequestData::Empty => Body::empty(),
-        RequestData::Form(data) => {
-            todo!()
-        }
-        RequestData::Json(data) => {
-            req = req.header("content-type", "application/json").uri(url);
-            let bytes = serde_json::to_vec(&data)?;
-            Body::from(bytes)
-        }
-        RequestData::Query(data) => {
-            let url = format!("{}?{}", url, serde_qs::to_string(data)?);
-            req = req.uri(url);
-            Body::empty()
-        }
-    };
-
-    //let req = match &self.auth {
-    //    None => req,
-    //    Some(Authorization::Bearer(token)) => req.bearer_auth(token),
-    //    Some(Authorization::Basic(user, pass)) => req.basic_auth(user, pass.as_ref()),
-    //    Some(Authorization::Query(pairs)) => req.query(&pairs),
-    //    Some(Authorization::Header(pairs)) => req.headers(pairs.clone()),
-    //};
-    req.body(body).map_err(From::from)
+impl<P, T: ?Sized, Request> ServiceExt<Request, P> for T
+where
+    T: Service<Request>,
+    Request: PaginatedRequest<PaginationData = P>,
+{
 }

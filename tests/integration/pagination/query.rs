@@ -2,26 +2,14 @@ use crate::utils::matchers::MissingQuery;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::collections::HashMap;
-use tower_jsonapi_client::pagination::query::*;
 use tower_jsonapi_client::pagination::*;
-use tower_jsonapi_client::{Client, Request, RequestData};
+use tower_jsonapi_client::{Client, Request, RequestData, ServiceExt};
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, Request as MockRequest, ResponseTemplate};
 
 #[derive(Clone, Serialize)]
 struct PaginationRequest {
     page: Option<usize>,
-}
-
-impl From<PaginationRequest> for QueryModifier {
-    fn from(s: PaginationRequest) -> QueryModifier {
-        let mut data = HashMap::new();
-        if let Some(x) = s.page {
-            data.insert("page".into(), x.to_string());
-        }
-        QueryModifier { data }
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -44,12 +32,16 @@ impl Request for PaginationRequest {
 }
 
 impl PaginatedRequest for PaginationRequest {
-    type Data = Self;
-    type Paginator = QueryPaginator<PaginationResponse, Self>;
-    fn paginator(&self) -> Self::Paginator {
-        QueryPaginator::new(|_, r: &PaginationResponse| {
-            r.next_page.map(|page| Self { page: Some(page) })
-        })
+    type PaginationData = usize;
+    fn next_page(
+        &self,
+        _prev_page: Option<&usize>,
+        response: &PaginationResponse,
+    ) -> Option<usize> {
+        response.next_page
+    }
+    fn update_request(&mut self, page: &usize) {
+        self.page = Some(*page);
     }
 }
 
@@ -99,7 +91,7 @@ async fn query_pagination() {
         .mount(&server)
         .await;
 
-    let mut response = client.send_paginated(&PaginationRequest { page: None });
+    let mut response = client.paginate(PaginationRequest { page: None });
     assert_eq!(
         response.next().await.unwrap().unwrap().data,
         "First!".to_string()
@@ -148,7 +140,7 @@ async fn can_overwrite_existing_query() {
         .mount(&server)
         .await;
 
-    let mut response = client.send_paginated(&PaginationRequest { page: Some(0) });
+    let mut response = client.paginate(PaginationRequest { page: Some(0) });
     assert_eq!(
         response.next().await.unwrap().unwrap().data,
         "First!".to_string()
