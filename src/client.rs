@@ -39,7 +39,7 @@ pub struct Client {
     auth: Option<Authorization>,
 }
 
-impl<R: Request + Send + 'static> Service<R> for Client {
+impl<R: Request + 'static> Service<R> for Client {
     type Response = R::Response;
     type Error = Error;
     type Future = Pin<Box<dyn Send + Future<Output = Result<Self::Response>>>>;
@@ -235,21 +235,21 @@ impl Client {
     }
 }
 
-pub trait ServiceExt<R: PaginatedRequest<PaginationData = T>, T>: Service<R> {
+pub trait ServiceExt<R, T>: Service<R> {
     fn paginate(self, request: R) -> PaginationStream<Self, T, R>
     where
         T: Clone,
         R: Request<Response = <Self as Service<R>>::Response>,
-        R: PaginatedRequest,
+        R: PaginatedRequest<PaginationData = T>,
         Self: Sized,
     {
         PaginationStream::new(self, request)
     }
 }
 
-impl<P, T: ?Sized, Request> ServiceExt<Request, P> for T
+impl<P, T, Request> ServiceExt<Request, P> for T
 where
-    T: Service<Request>,
+    T: ?Sized + Service<Request>,
     Request: PaginatedRequest<PaginationData = P>,
 {
 }

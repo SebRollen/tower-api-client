@@ -27,12 +27,7 @@ pin_project! {
     }
 }
 
-impl<Svc: Service<R>, T, R> PaginationStream<Svc, T, R>
-where
-    T: Clone,
-    Svc: Service<R, Response = R::Response>,
-    R: PaginatedRequest<PaginationData = T>,
-{
+impl<Svc: Service<R>, T, R> PaginationStream<Svc, T, R> {
     pub(crate) fn new(svc: Svc, request: R) -> Self {
         Self {
             state: State::Start(None),
@@ -50,6 +45,7 @@ where
     R: PaginatedRequest<PaginationData = T>,
 {
     type Item = Result<Svc::Response, Svc::Error>;
+
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
         let mut page = match this.state {

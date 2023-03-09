@@ -22,11 +22,11 @@ impl<T> Default for RequestData<T> {
 
 /// The base-trait for requests sent by the client. The trait specifies the full life-cycle of the
 /// request, including the endpoint, headers, data, method and eventual response.
-pub trait Request {
+pub trait Request: Send {
     /// The type of additional data sent with the request. Usually, this will be `()` or `Self`.
     type Data: Serialize;
     /// The type of the response from the server.
-    type Response: for<'de> Deserialize<'de> + Unpin;
+    type Response: for<'de> Deserialize<'de>;
 
     /// The HTTP method for the request.
     const METHOD: Method = Method::GET;

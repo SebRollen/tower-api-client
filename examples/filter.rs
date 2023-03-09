@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use tower::ServiceExt;
+use tower::{Service, ServiceBuilder};
 use tower_jsonapi_client::{Client, Request, RequestData};
 
 #[derive(Serialize)]
@@ -34,10 +34,18 @@ impl Request for GetPassengers {
 
 #[tokio::main]
 pub async fn main() {
-    let client = Client::new("https://api.instantwebtools.net");
+    let mut client = ServiceBuilder::new()
+        .filter(|req: GetPassengers| {
+            if req.size < 2 {
+                Ok(req)
+            } else {
+                Err("Not allowed!")
+            }
+        })
+        .service(Client::new("https://api.instantwebtools.net"));
 
     let req = GetPassengers { size: 10 };
-    let res = client.clone().oneshot(req).await.unwrap();
+    let res = client.call(req).await.unwrap();
     res.data
         .iter()
         .for_each(|passenger| println!("{}", passenger.name.as_deref().unwrap_or("No name")));
