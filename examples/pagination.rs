@@ -59,18 +59,19 @@ impl PaginatedRequest for GetPassengers {
 
 #[tokio::main]
 pub async fn main() {
+    env_logger::init();
     let client = ServiceBuilder::new()
-        .rate_limit(1, std::time::Duration::from_secs(1))
+        .rate_limit(10, std::time::Duration::from_secs(5))
         .service(Client::new("https://api.instantwebtools.net"));
 
     let req = GetPassengers {
         page: None,
-        size: 1,
+        size: 10,
     };
 
     client
         .paginate(req)
-        .take(5)
+        .take(50)
         .map(|maybe_wrapper| maybe_wrapper.map(|wrapper| wrapper.data))
         .try_flatten_iters()
         .try_for_each(|res| async move {

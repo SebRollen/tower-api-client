@@ -1,4 +1,5 @@
 use crate::utils::EmptyHello;
+use tower::ServiceExt;
 use tower_jsonapi_client::Client;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -19,5 +20,5 @@ async fn query_auth() {
         .mount(&server)
         .await;
 
-    client.send(EmptyHello).await.unwrap();
+    client.oneshot(EmptyHello).await.unwrap();
 }

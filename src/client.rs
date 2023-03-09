@@ -229,7 +229,7 @@ impl Client {
     }
 
     /// Send a single `Request`
-    pub async fn send<R: Request>(&self, request: R) -> Result<R::Response> {
+    pub(crate) async fn send<R: Request>(&self, request: R) -> Result<R::Response> {
         let req = self.format_request(&request)?;
         self.send_raw(req).await
     }

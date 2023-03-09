@@ -1,5 +1,6 @@
 use crate::utils::{FormHello, JsonHello, NameGreeting, QueryHello};
 use serde_json::json;
+use tower::ServiceExt;
 use tower_jsonapi_client::Client;
 use wiremock::matchers::{body_json, body_string, header, method, path, query_param};
 use wiremock::{Mock, MockServer, Request as MockRequest, ResponseTemplate};
@@ -30,7 +31,7 @@ async fn query() {
         .await;
 
     let response = client
-        .send(QueryHello {
+        .oneshot(QueryHello {
             name: "world".into(),
         })
         .await
@@ -63,7 +64,7 @@ async fn json() {
         .await;
 
     let response = client
-        .send(JsonHello {
+        .oneshot(JsonHello {
             name: "world".into(),
         })
         .await
@@ -97,7 +98,7 @@ async fn form() {
         .await;
 
     let response = client
-        .send(FormHello {
+        .oneshot(FormHello {
             name: "world".into(),
         })
         .await

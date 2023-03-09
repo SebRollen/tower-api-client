@@ -1,4 +1,5 @@
 use crate::utils::EmptyHello;
+use tower::ServiceExt;
 use tower_jsonapi_client::Client;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -17,7 +18,7 @@ async fn basic_auth() {
         .mount(&server)
         .await;
 
-    client.send(EmptyHello).await.unwrap();
+    client.oneshot(EmptyHello).await.unwrap();
 }
 
 #[tokio::test]
@@ -34,5 +35,5 @@ async fn basic_auth_no_password() {
         .mount(&server)
         .await;
 
-    client.send(EmptyHello).await.unwrap();
+    client.oneshot(EmptyHello).await.unwrap();
 }

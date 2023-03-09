@@ -1,8 +1,8 @@
 //! Constructs for wrapping a paginated API.
 use crate::request::Request;
-use futures::stream::FuturesOrdered;
 use futures::{ready, Stream};
 use pin_project_lite::pin_project;
+use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tower::Service;
@@ -21,8 +21,7 @@ pin_project! {
     pub struct PaginationStream<Svc: Service<R>, T, R> {
         state: State<T>,
         svc: Svc,
-        #[pin]
-        queue: FuturesOrdered<Svc::Future>,
+        future: Option<Svc::Future>,
         request: R,
     }
 }
@@ -32,7 +31,7 @@ impl<Svc: Service<R>, T, R> PaginationStream<Svc, T, R> {
         Self {
             state: State::Start(None),
             svc,
-            queue: FuturesOrdered::new(),
+            future: None,
             request,
         }
     }
@@ -40,19 +39,20 @@ impl<Svc: Service<R>, T, R> PaginationStream<Svc, T, R> {
 
 impl<Svc, T, R> Stream for PaginationStream<Svc, T, R>
 where
-    T: Clone,
+    T: Clone + std::fmt::Debug,
     Svc: Service<R, Response = R::Response>,
+    Svc::Future: Unpin,
     R: PaginatedRequest<PaginationData = T>,
 {
     type Item = Result<Svc::Response, Svc::Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
+        let this = self.project();
         let mut page = match this.state {
             State::Start(None) => None,
             State::Start(Some(state)) | State::Next(state) => Some(state.clone()),
             State::End => {
-                if this.queue.is_empty() {
+                if this.future.is_none() {
                     return Poll::Ready(None);
                 } else {
                     return Poll::Pending;
@@ -60,17 +60,20 @@ where
             }
         };
 
-        if let Poll::Ready(r) = Stream::poll_next(this.queue.as_mut(), cx) {
-            if let Some(rsp) = r.transpose().map_err(Into::into)? {
-                page = this.request.next_page(page.as_ref(), &rsp);
+        match this.future {
+            Some(fut) => {
+                let response = ready!(Box::pin(fut).as_mut().poll(cx))?;
+                *this.future = None;
+                page = this.request.next_page(page.as_ref(), &response);
                 if let Some(page) = page {
                     *this.state = State::Next(page)
                 } else {
                     *this.state = State::End
                 }
 
-                return Poll::Ready(Some(Ok(rsp)));
-            } else {
+                Poll::Ready(Some(Ok(response)))
+            }
+            None => {
                 if let Err(e) = ready!(this.svc.poll_ready(cx)) {
                     return Poll::Ready(Some(Err(e)));
                 }
@@ -79,15 +82,11 @@ where
                     this.request.update_request(page);
                 }
 
-                this.queue
-                    .get_mut()
-                    .push_back(this.svc.call(this.request.clone()));
+                *this.future = Some(this.svc.call(this.request.clone()));
                 cx.waker().wake_by_ref();
 
                 Poll::Pending
             }
-        } else {
-            Poll::Pending
         }
     }
 }
