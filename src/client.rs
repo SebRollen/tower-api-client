@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use crate::pagination::{PaginatedRequest, PaginationStream};
 use crate::request::{Request, RequestData};
 use base64::{engine::general_purpose::STANDARD, Engine};
-use futures::{prelude::*, stream::FuturesOrdered};
+use futures::prelude::*;
 use hyper::header::{HeaderMap, HeaderName, HeaderValue};
 use hyper::{
     body::{to_bytes, Body},
@@ -35,13 +35,14 @@ enum Authorization {
 pub struct Client {
     inner: HyperClient<HttpsConnector<HttpConnector>, Body>,
     base_url: String,
+    default_headers: HeaderMap<HeaderValue>,
     auth: Option<Authorization>,
 }
 
-impl<R: Request + 'static> Service<R> for Client {
+impl<R: Request + Send + 'static> Service<R> for Client {
     type Response = R::Response;
     type Error = Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response>>>>;
+    type Future = Pin<Box<dyn Send + Future<Output = Result<Self::Response>>>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(Ok(()))
@@ -70,6 +71,7 @@ impl Client {
         Self {
             inner,
             base_url: base_url.to_string(),
+            default_headers: HeaderMap::default(),
             auth: None,
         }
     }
@@ -116,6 +118,11 @@ impl Client {
         self
     }
 
+    pub fn default_headers(mut self, default_headers: HeaderMap<HeaderValue>) -> Self {
+        self.default_headers.extend(default_headers);
+        self
+    }
+
     fn send_raw<R>(&self, req: hyper::Request<Body>) -> impl std::future::Future<Output = Result<R>>
     where
         R: for<'de> serde::Deserialize<'de>,
@@ -142,8 +149,10 @@ impl Client {
         let endpoint = endpoint.trim_matches('/');
         let url = format!("{}/{}", self.base_url, endpoint);
 
+        let mut headers = self.default_headers.clone();
+        headers.extend(request.headers());
         let mut req = Builder::new().uri(&url).method(R::METHOD);
-        req.headers_mut().replace(&mut request.headers());
+        req.headers_mut().replace(&mut headers);
 
         req = {
             use secrecy::ExposeSecret;
@@ -227,10 +236,7 @@ impl Client {
 }
 
 pub trait ServiceExt<R: PaginatedRequest<PaginationData = T>, T>: Service<R> {
-    fn paginate(
-        self,
-        request: R,
-    ) -> PaginationStream<Self, T, R, FuturesOrdered<<Self as Service<R>>::Future>>
+    fn paginate(self, request: R) -> PaginationStream<Self, T, R>
     where
         T: Clone,
         R: Request<Response = <Self as Service<R>>::Response>,
