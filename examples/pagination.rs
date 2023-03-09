@@ -38,6 +38,10 @@ impl Request for GetPassengers {
 
 impl PaginatedRequest for GetPassengers {
     type PaginationData = usize;
+    fn get_page(&self) -> Option<usize> {
+        self.page
+    }
+
     fn next_page(&self, prev_page: Option<&usize>, response: &PassengersWrapper) -> Option<usize> {
         match prev_page {
             None => Some(1),
@@ -62,7 +66,7 @@ pub async fn main() {
     let client = Client::new("https://api.instantwebtools.net");
 
     let req = GetPassengers {
-        page: None,
+        page: Some(3),
         size: 10,
     };
 

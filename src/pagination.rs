@@ -9,6 +9,7 @@ use tower::Service;
 
 pub trait PaginatedRequest: Request + Clone {
     type PaginationData;
+    fn get_page(&self) -> Option<Self::PaginationData>;
     fn next_page(
         &self,
         prev_page: Option<&Self::PaginationData>,
@@ -21,15 +22,16 @@ pin_project! {
     pub struct PaginationStream<Svc: Service<R>, T, R> {
         state: State<T>,
         svc: Svc,
-        future: Option<Svc::Future>,
+        future: Option<Pin<Box<Svc::Future>>>,
         request: R,
     }
 }
 
-impl<Svc: Service<R>, T, R> PaginationStream<Svc, T, R> {
+impl<Svc: Service<R>, T, R: PaginatedRequest<PaginationData = T>> PaginationStream<Svc, T, R> {
     pub(crate) fn new(svc: Svc, request: R) -> Self {
+        let page = request.get_page();
         Self {
-            state: State::Start(None),
+            state: State::Start(page),
             svc,
             future: None,
             request,
@@ -52,40 +54,38 @@ where
             State::Start(None) => None,
             State::Start(Some(state)) | State::Next(state) => Some(state.clone()),
             State::End => {
-                if this.future.is_none() {
-                    return Poll::Ready(None);
-                } else {
-                    return Poll::Pending;
-                }
+                return Poll::Ready(None);
             }
         };
 
-        match this.future {
-            Some(fut) => {
-                let response = ready!(Box::pin(fut).as_mut().poll(cx))?;
-                *this.future = None;
-                page = this.request.next_page(page.as_ref(), &response);
-                if let Some(page) = page {
-                    *this.state = State::Next(page)
-                } else {
-                    *this.state = State::End
+        loop {
+            match this.future {
+                Some(fut) => {
+                    let response = ready!(fut.as_mut().poll(cx));
+                    // The future has completed, so we replace it with none to make sure it doesn't
+                    // get polled again
+                    *this.future = None;
+                    let response = response?;
+                    page = this.request.next_page(page.as_ref(), &response);
+                    if let Some(page) = page {
+                        *this.state = State::Next(page)
+                    } else {
+                        *this.state = State::End
+                    }
+
+                    return Poll::Ready(Some(Ok(response)));
                 }
+                None => {
+                    if let Err(e) = ready!(this.svc.poll_ready(cx)) {
+                        return Poll::Ready(Some(Err(e)));
+                    }
 
-                Poll::Ready(Some(Ok(response)))
-            }
-            None => {
-                if let Err(e) = ready!(this.svc.poll_ready(cx)) {
-                    return Poll::Ready(Some(Err(e)));
+                    if let Some(page) = page.as_ref() {
+                        this.request.update_request(page);
+                    }
+
+                    *this.future = Some(Box::pin(this.svc.call(this.request.clone())));
                 }
-
-                if let Some(page) = page.as_ref() {
-                    this.request.update_request(page);
-                }
-
-                *this.future = Some(this.svc.call(this.request.clone()));
-                cx.waker().wake_by_ref();
-
-                Poll::Pending
             }
         }
     }

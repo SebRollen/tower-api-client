@@ -26,15 +26,6 @@ thiserror = "1.0"
 tower = "0.4"
 url = "2.3"
 
-[[example]]
-name = "simple"
-
-[[example]]
-name = "pagination"
-
-[[example]]
-name = "filter"
-
 [dev-dependencies]
 env_logger = "0.9"
 serde = { version = "1.0", features = ["derive"] }

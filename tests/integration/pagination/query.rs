@@ -33,6 +33,9 @@ impl Request for PaginationRequest {
 
 impl PaginatedRequest for PaginationRequest {
     type PaginationData = usize;
+    fn get_page(&self) -> Option<usize> {
+        self.page
+    }
     fn next_page(
         &self,
         _prev_page: Option<&usize>,
