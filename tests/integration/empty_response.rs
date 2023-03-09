@@ -1,6 +1,6 @@
 use crate::utils::EmptyHello;
 use tower::ServiceExt;
-use tower_jsonapi_client::Client;
+use tower_api_client::Client;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 

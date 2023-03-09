@@ -2,8 +2,8 @@ use crate::utils::matchers::MissingQuery;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use tower_jsonapi_client::pagination::*;
-use tower_jsonapi_client::{Client, Request, RequestData, ServiceExt};
+use tower_api_client::pagination::*;
+use tower_api_client::{Client, Request, RequestData, ServiceExt};
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, Request as MockRequest, ResponseTemplate};
 

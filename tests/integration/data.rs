@@ -1,7 +1,7 @@
 use crate::utils::{FormHello, JsonHello, NameGreeting, QueryHello};
 use serde_json::json;
 use tower::ServiceExt;
-use tower_jsonapi_client::Client;
+use tower_api_client::Client;
 use wiremock::matchers::{body_json, body_string, header, method, path, query_param};
 use wiremock::{Mock, MockServer, Request as MockRequest, ResponseTemplate};
 

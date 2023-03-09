@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use tower::ServiceExt;
-use tower_jsonapi_client::{Client, Request, RequestData};
+use tower_api_client::{Client, Request, RequestData};
 
 #[derive(Serialize)]
 struct GetPassengers {
@@ -34,10 +34,11 @@ impl Request for GetPassengers {
 
 #[tokio::main]
 pub async fn main() {
+    env_logger::init();
     let client = Client::new("https://api.instantwebtools.net");
 
     let req = GetPassengers { size: 10 };
-    let res = client.clone().oneshot(req).await.unwrap();
+    let res = client.oneshot(req).await.unwrap();
     res.data
         .iter()
         .for_each(|passenger| println!("{}", passenger.name.as_deref().unwrap_or("No name")));

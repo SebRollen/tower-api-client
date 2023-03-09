@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use tower_jsonapi_client::{EmptyResponse, Request, RequestData};
+use tower_api_client::{EmptyResponse, Request, RequestData};
 
 pub mod matchers;
 

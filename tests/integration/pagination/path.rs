@@ -1,8 +1,8 @@
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use tower_jsonapi_client::pagination::*;
-use tower_jsonapi_client::{Client, Request, ServiceExt};
+use tower_api_client::pagination::*;
+use tower_api_client::{Client, Request, ServiceExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request as MockRequest, ResponseTemplate};
 

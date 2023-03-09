@@ -2,9 +2,8 @@ use futures::{StreamExt, TryStreamExt as _};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use stream_flatten_iters::TryStreamExt;
-use tower::ServiceBuilder;
-use tower_jsonapi_client::pagination::PaginatedRequest;
-use tower_jsonapi_client::{Client, Request, RequestData, ServiceExt as _};
+use tower_api_client::pagination::PaginatedRequest;
+use tower_api_client::{Client, Request, RequestData, ServiceExt as _};
 
 #[derive(Clone, Debug, Serialize)]
 struct GetPassengers {
@@ -60,9 +59,7 @@ impl PaginatedRequest for GetPassengers {
 #[tokio::main]
 pub async fn main() {
     env_logger::init();
-    let client = ServiceBuilder::new()
-        .rate_limit(10, std::time::Duration::from_secs(5))
-        .service(Client::new("https://api.instantwebtools.net"));
+    let client = Client::new("https://api.instantwebtools.net");
 
     let req = GetPassengers {
         page: None,
@@ -71,7 +68,7 @@ pub async fn main() {
 
     client
         .paginate(req)
-        .take(50)
+        .take(5)
         .map(|maybe_wrapper| maybe_wrapper.map(|wrapper| wrapper.data))
         .try_flatten_iters()
         .try_for_each(|res| async move {

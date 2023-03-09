@@ -1,11 +1,11 @@
 [package]
-name = "tower-jsonapi-client"
+name = "tower-api-client"
 version = "0.1.0"
 authors = ["Sebastian Rollen <rollenseb@gmail.com>"]
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/SebRollen/tower-jsonapi-client"
-description = "Toolkit for creating JSON API clients with Tower"
+repository = "https://github.com/SebRollen/tower-api-client"
+description = "Toolkit for creating API clients with Tower"
 keywords = ["client", "api"]
 categories = ["web-programming", "web-programming::http-client"]
 
@@ -16,13 +16,14 @@ hyper = { version = "0.14", features = ["client", "http1"] }
 hyper-tls = "0.5"
 log = "0.4"
 pin-project-lite = "0.2"
+reusable-box-future = "0.2.0"
 secrecy = "0.8.0"
 serde = "1.0"
 serde_json = "1.0"
 serde_qs = "0.12"
 serde_urlencoded = "0.7"
 thiserror = "1.0"
-tower = { version = "0.4", features = ["filter", "limit", "util"] }
+tower = "0.4"
 url = "2.3"
 
 [[example]]
@@ -39,6 +40,7 @@ env_logger = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 stream-flatten-iters = "0.2"
 tokio = { version = "1.13", features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.4", features = ["filter", "limit", "util"] }
 wiremock = "0.5"
 
 [features]

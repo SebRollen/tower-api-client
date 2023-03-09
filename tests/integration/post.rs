@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde_json::json;
 use std::borrow::Cow;
 use tower::ServiceExt;
-use tower_jsonapi_client::{Client, EmptyResponse, Method, Request, RequestData};
+use tower_api_client::{Client, EmptyResponse, Method, Request, RequestData};
 use wiremock::matchers::{body_json, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
