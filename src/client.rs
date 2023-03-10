@@ -119,7 +119,7 @@ impl Client {
     }
 
     pub fn default_headers(mut self, default_headers: HeaderMap<HeaderValue>) -> Self {
-        self.default_headers.extend(default_headers);
+        self.default_headers = default_headers;
         self
     }
 
@@ -152,7 +152,9 @@ impl Client {
         let mut headers = self.default_headers.clone();
         headers.extend(request.headers());
         let mut req = Builder::new().uri(&url).method(R::METHOD);
-        req.headers_mut().replace(&mut headers);
+        for header in headers {
+            req = req.header(header.0.expect("Always has a header name"), header.1);
+        }
 
         req = {
             use secrecy::ExposeSecret;
