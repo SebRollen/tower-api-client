@@ -33,7 +33,7 @@ pub trait Request: Send {
 
     /// The endpoint to which the request will be sent. The base url is set in the client, and the
     /// endpoint method returns the specific resource endpoint.
-    fn endpoint(&self) -> Cow<str>;
+    fn endpoint(&self) -> Cow<'_, str>;
 
     /// Any additional headers that should be sent with the request. Note that common headers such
     /// as authorization headers should be set on the client directly.

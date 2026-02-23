@@ -21,7 +21,7 @@ impl Request for PaginationRequest {
     type Data = ();
     type Response = PaginationResponse;
 
-    fn endpoint(&self) -> Cow<str> {
+    fn endpoint(&self) -> Cow<'_, str> {
         match self.page {
             Some(page) => format!("/nested/page/{}", page).into(),
             None => "/nested/page".into(),

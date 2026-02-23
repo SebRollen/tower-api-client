@@ -22,7 +22,7 @@ impl Request for PaginationRequest {
     type Data = Self;
     type Response = PaginationResponse;
 
-    fn endpoint(&self) -> Cow<str> {
+    fn endpoint(&self) -> Cow<'_, str> {
         "/page".into()
     }
 

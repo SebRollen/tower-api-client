@@ -18,7 +18,7 @@ impl Request for GetPassengers {
     type Data = Self;
     type Response = Return;
 
-    fn endpoint(&self) -> Cow<str> {
+    fn endpoint(&self) -> Cow<'_, str> {
         "/v1/passenger".into()
     }
 

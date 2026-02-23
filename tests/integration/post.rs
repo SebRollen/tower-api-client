@@ -16,7 +16,7 @@ impl Request for CreateUser {
     type Response = EmptyResponse;
     const METHOD: Method = Method::POST;
 
-    fn endpoint(&self) -> Cow<str> {
+    fn endpoint(&self) -> Cow<'_, str> {
         "/user".into()
     }
 

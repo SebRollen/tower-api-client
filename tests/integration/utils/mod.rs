@@ -10,7 +10,7 @@ impl Request for EmptyHello {
     type Data = ();
     type Response = EmptyResponse;
 
-    fn endpoint(&self) -> Cow<str> {
+    fn endpoint(&self) -> Cow<'_, str> {
         "/hello".into()
     }
 }
@@ -39,7 +39,7 @@ impl Request for QueryHello {
     type Data = Self;
     type Response = NameGreeting;
 
-    fn endpoint(&self) -> Cow<str> {
+    fn endpoint(&self) -> Cow<'_, str> {
         "/hello".into()
     }
 
@@ -52,7 +52,7 @@ impl Request for JsonHello {
     type Data = Self;
     type Response = NameGreeting;
 
-    fn endpoint(&self) -> Cow<str> {
+    fn endpoint(&self) -> Cow<'_, str> {
         "/hello".into()
     }
 
@@ -65,7 +65,7 @@ impl Request for FormHello {
     type Data = Self;
     type Response = NameGreeting;
 
-    fn endpoint(&self) -> Cow<str> {
+    fn endpoint(&self) -> Cow<'_, str> {
         "/hello".into()
     }
 
